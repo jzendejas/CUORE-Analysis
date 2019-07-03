@@ -157,7 +157,7 @@ void plotNPSAvgXYZ(TString path, TString prefix, int nFiles){
 		
 		cout << "\n" << "Creating Power Spectrum number " << filenum + 1 << endl;
 		singleNPS(tree,temp_psx,temp_psy,temp_psz,filenum);
-		temp_psx.clear(); temp_psy.clear(); temp_psz.clear();	
+		//temp_psx.clear(); temp_psy.clear(); temp_psz.clear();	
 
 	}
 	for(int i = 0; i < temp_psx.size(); i++){
