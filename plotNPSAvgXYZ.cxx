@@ -80,11 +80,18 @@ void singleNPS(TTree *tree, vector<double>& psx, vector<double>& psy, vector<dou
 
 	Int_t n_size = dim + 1;
 
-	cout << "Transforming Y..." << endl;	
-	TVirtualFFT *fft_owny = TVirtualFFT::FFT(1, &n_size, "R2C M K");
-	fft_owny->SetPoints(&wave1[0]);
-	fft_owny->Transform();
-	fft_owny->GetPoints(&wave1[0]);
+	N = dim;
+	f_samp = 1/dt;
+	f_nyq = f_samp/2;
+	df = double(f_samp)/N;
+
+
+	if (filenum == 0){
+		cout << "N = " << N << endl;
+		cout << "Sampling Frequency is: " << f_samp << endl;
+		cout << "Nyquist frequency is: " << f_nyq << endl;
+		cout << "The frequency spacing is: " << df << endl;
+	}
 
 	cout << "Transforming X..." << endl;
 	TVirtualFFT *fft_ownx = TVirtualFFT::FFT(1, &n_size, "R2C M K");
@@ -92,21 +99,17 @@ void singleNPS(TTree *tree, vector<double>& psx, vector<double>& psy, vector<dou
 	fft_ownx->Transform();
 	fft_ownx->GetPoints(&wave0[0]);
 
+	cout << "Transforming Y..." << endl;	
+	TVirtualFFT *fft_owny = TVirtualFFT::FFT(1, &n_size, "R2C M K");
+	fft_owny->SetPoints(&wave1[0]);
+	fft_owny->Transform();
+	fft_owny->GetPoints(&wave1[0]);
+	
 	cout << "Transforming Z..." << endl;
 	TVirtualFFT *fft_ownz = TVirtualFFT::FFT(1, &n_size, "R2C M K");
 	fft_ownz->SetPoints(&wave2[0]);
 	fft_ownz->Transform();
 	fft_ownz->GetPoints(&wave2[0]);
-
-	N = dim;
-	f_samp = 1/dt;
-	f_nyq = f_samp/2;
-	df = double(f_samp)/N;
-
-	cout << "N = " << N << endl;
-	cout << "Sampling Frequency is: " << f_samp << endl;
-	cout << "Nyquist frequency is: " << f_nyq << endl;
-	cout << "The frequency spacing is: " << df << endl;
 
 	Double_t *re_full_x = new Double_t[N];
 	Double_t *im_full_x = new Double_t[N];
@@ -120,12 +123,6 @@ void singleNPS(TTree *tree, vector<double>& psx, vector<double>& psy, vector<dou
 		fft_ownx->GetPointComplex(g, re_full_x[g], im_full_x[g]);
 		fft_owny->GetPointComplex(g, re_full_y[g], im_full_y[g]);
 		fft_ownz->GetPointComplex(g, re_full_z[g], im_full_z[g]);
-		if (g % 10000 == 0){
-			//			cout << "Complex point number " << g << " in X is: (" << re_full_x[g] << ", "<< im_full_x[g] << ")" << endl;
-			//			cout << "Complex point number " << g << " in Y is: (" << re_full_y[g] << ", "<< im_full_y[g] << ")" << endl;
-			//			cout << "Complex point number " << g << " in Z is: (" << re_full_z[g] << ", "<< im_full_z[g] << ")" << endl;
-		}
-
 	}
 	if(filenum == 0){
 		for(int i = 0; i < (N/2); i++){
@@ -157,9 +154,11 @@ void plotNPSAvgXYZ(TString path, TString prefix, int nFiles){
 		TFile *hfile = new TFile(Form("%s/%s_p%05d.root",path.Data(),prefix.Data(),filenum+1));	
 		TTree* tree = nullptr;
 		hfile->GetObject("data_tree",tree);
+		
 		cout << "\n" << "Creating Power Spectrum number " << filenum + 1 << endl;
-		temp_psx.clear(); temp_psy.clear(); temp_psz.clear();	
 		singleNPS(tree,temp_psx,temp_psy,temp_psz,filenum);
+		temp_psx.clear(); temp_psy.clear(); temp_psz.clear();	
+
 	}
 	for(int i = 0; i < temp_psx.size(); i++){
 		temp_psx[i] /= (nFiles*N);
@@ -170,30 +169,18 @@ void plotNPSAvgXYZ(TString path, TString prefix, int nFiles){
 	for (int k = 0; k < N/2; k++){
 		freqs.push_back(k*df);
 	}
-	cout << "Frequency axis created..." << endl;
-	//	int len = temp_ps.size();
-	/*	for(int i = 0; i < N/2; i++){
-		avg_psx.push_back(avg_ps[i]);
-		avg_psy.push_back(avg_ps[N/2+i]);
-		avg_psz.push_back(avg_ps[N+i]);
-	//if (i % 1000 == 0){
-	//	cout << "i = " << i << endl;
-	//	cout << "i + N/2 = " << i + N/2 << endl;
-	//	cout << "i + N = " << i + N << endl;
-	//	cout << "length of sum_ps = " << len << endl;
-	//}
-	}	
-	 */
-	cout << "Avg vectors made." << endl;
+	//cout << "Frequency axis created..." << endl;
+	//cout << "Avg vectors made." << endl;
 	//cout << "Size of ps x,y,z = " << temp_psx.size() << " " << temp_psy.size() << " " << temp_psz.size();
 	TGraph* grx = new TGraph(N/2, &freqs[0], &temp_psx[0]);
 	TGraph* gry = new TGraph(N/2, &freqs[0], &temp_psy[0]);
 	TGraph* grz = new TGraph(N/2, &freqs[0], &temp_psz[0]);
-	TCanvas* c0 = new TCanvas("nps_xyz", "NPS", 800, 600);
+
+	TMultiGraph* mg = new TMultiGraph;
+	TCanvas* c0 = new TCanvas("nps_xyz", "NPS", 1600, 1200);
+
 	c0->SetLogx();
 	c0->SetLogy();
-
-	TMultiGraph* mg = new TMultiGraph();
 
 	grx->SetTitle("X");
 	grx->SetLineColor(kRed);
@@ -206,13 +193,13 @@ void plotNPSAvgXYZ(TString path, TString prefix, int nFiles){
 	grz->SetLineWidth(2);
 	mg->Add( grx );
 	mg->Add( gry );
-	mg->Add( grz );
+	//mg->Add( grz );
 	//mg->GetXaxis()->SetLimits(1,1000);
 	//mg->SetMinimum(1E-08);
 	//mg->SetMaximum(100);
-	mg->GetXaxis()->SetTitle("frequency (Hz)");
-	mg->GetYaxis()->SetTitle("Noise Power Density (V^2/Hz)");
-	mg->GetHistogram()->SetTitle(Form("NPS Averaged over %d Runs: Quiet Tests",nFiles));
+	
+	mg->SetTitle(Form("NPS Averaged over %d Runs: Quiet Tests; frequency (Hz); Noise Power Density (V^2/Hz)",nFiles));
+
 	mg->Draw("AL");
 	c0->BuildLegend();
 }
@@ -234,6 +221,9 @@ int main(int argc, char **argv) {
 	int nFiles = atoi(argv[3]);
 
 	plotNPSAvgXYZ(path, prefix, nFiles);
+	//mg->Draw("AL");
+	//c0->BuildLegend();
+	cout << "Plot Generated (in theory)" << endl;
 	return 0;
 }
 //#endif /* __CINT __ */
