@@ -86,13 +86,6 @@ void singleNPS(TTree *tree, vector<double>& psx, vector<double>& psy, vector<dou
 	df = double(f_samp)/N;
 
 
-	if (filenum == 0){
-		cout << "N = " << N << endl;
-		cout << "Sampling Frequency is: " << f_samp << endl;
-		cout << "Nyquist frequency is: " << f_nyq << endl;
-		cout << "The frequency spacing is: " << df << endl;
-	}
-
 	cout << "Transforming X..." << endl;
 	TVirtualFFT *fft_ownx = TVirtualFFT::FFT(1, &n_size, "R2C M K");
 	fft_ownx->SetPoints(&wave0[0]);
@@ -151,15 +144,19 @@ void plotNPSAvgXYZ(TString path, TString prefix, int nFiles){
 	vector<double> freqs;
 
 	for(int filenum = 0; filenum < nFiles; filenum++){
-		TFile *hfile = new TFile(Form("%s/%s_p%05d.root",path.Data(),prefix.Data(),filenum+1));	
+		TString inFile = Form("%s/%s_p%05d.root",path.Data(),prefix.Data(),filenum+1);
+		std::cout << inFile.Data() << std::endl;
+		TFile *hfile = new TFile(inFile);
 		TTree* tree = nullptr;
 		hfile->GetObject("data_tree",tree);
-		
+
 		cout << "\n" << "Creating Power Spectrum number " << filenum + 1 << endl;
 		singleNPS(tree,temp_psx,temp_psy,temp_psz,filenum);
-		//temp_psx.clear(); temp_psy.clear(); temp_psz.clear();	
+		//temp_psx.clear(); temp_psy.clear(); temp_psz.clear();    
 
 	}
+
+
 	for(int i = 0; i < temp_psx.size(); i++){
 		temp_psx[i] /= (nFiles*N);
 		temp_psy[i] /= (nFiles*N);
@@ -169,15 +166,19 @@ void plotNPSAvgXYZ(TString path, TString prefix, int nFiles){
 	for (int k = 0; k < N/2; k++){
 		freqs.push_back(k*df);
 	}
-	//cout << "Frequency axis created..." << endl;
-	//cout << "Avg vectors made." << endl;
-	//cout << "Size of ps x,y,z = " << temp_psx.size() << " " << temp_psy.size() << " " << temp_psz.size();
+	cout << "Frequency axis created..." << endl;
+	cout << "Avg vectors made." << endl;
+	cout << "Size of ps x,y,z = " << temp_psx.size() << " " << temp_psy.size() << " " << temp_psz.size() << endl;
+
+	cout << "N = " << N << endl;
+
+	TCanvas* c0 = new TCanvas("nps_xyz", "NPS", 1600, 1200);
+
 	TGraph* grx = new TGraph(N/2, &freqs[0], &temp_psx[0]);
 	TGraph* gry = new TGraph(N/2, &freqs[0], &temp_psy[0]);
 	TGraph* grz = new TGraph(N/2, &freqs[0], &temp_psz[0]);
 
-	TMultiGraph* mg = new TMultiGraph;
-	TCanvas* c0 = new TCanvas("nps_xyz", "NPS", 1600, 1200);
+	TMultiGraph* mg = new TMultiGraph();
 
 	c0->SetLogx();
 	c0->SetLogy();
@@ -193,15 +194,22 @@ void plotNPSAvgXYZ(TString path, TString prefix, int nFiles){
 	grz->SetLineWidth(2);
 	mg->Add( grx );
 	mg->Add( gry );
-	//mg->Add( grz );
+	mg->Add( grz );
 	//mg->GetXaxis()->SetLimits(1,1000);
 	//mg->SetMinimum(1E-08);
 	//mg->SetMaximum(100);
-	
+
 	mg->SetTitle(Form("NPS Averaged over %d Runs: Quiet Tests; frequency (Hz); Noise Power Density (V^2/Hz)",nFiles));
 
 	mg->Draw("AL");
 	c0->BuildLegend();
+	c0->Modified();
+	c0->Update();
+	c0->SaveAs(Form("NPS_Avg_%d.png", nFiles));
+	TFile* file1 = new TFile(Form("NPS_Avg_%d.root",nFiles),"recreate");
+	file1->cd();
+	c0->Write("c0");
+	file1->Close();
 }
 
 //#ifndef __CINT__
@@ -221,9 +229,12 @@ int main(int argc, char **argv) {
 	int nFiles = atoi(argv[3]);
 
 	plotNPSAvgXYZ(path, prefix, nFiles);
-	//mg->Draw("AL");
-	//c0->BuildLegend();
 	cout << "Plot Generated (in theory)" << endl;
+
+	cout << "N = " << N << endl;
+	cout << "Sampling Frequency is: " << f_samp << endl;
+	cout << "Nyquist frequency is: " << f_nyq << endl;
+	cout << "The frequency spacing is: " << df << endl;
 	return 0;
 }
 //#endif /* __CINT __ */
