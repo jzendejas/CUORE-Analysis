@@ -8,7 +8,7 @@
 #include <string>
 using namespace std;
 
-void plotTimeXYZ(TString path, TString prefix, int nFiles){
+void plotTimeXYZ(TString path, TString prefix, int nFiles, double start, double end, TString title){
 
 /*	TString titlepiece;
 	cout << "Enter Title Suffix: " << endl;
@@ -71,10 +71,10 @@ void plotTimeXYZ(TString path, TString prefix, int nFiles){
 
 	auto c0 = new TCanvas("Timestream","Multigraph");
 	auto mg = new TMultiGraph();
-	mg->SetTitle("Acceleometer Response vs. Time: Pulse Tube On (Default Drive)" );
+	mg->SetTitle(title);
 
 	grx->SetTitle("X");
-	grx->SetLineColor(kBlack);
+	grx->SetLineColor(kRed);
 	grx->SetLineWidth(1);
 	gry->SetTitle("Y");
 	gry->SetLineColor(kGreen);
@@ -85,9 +85,9 @@ void plotTimeXYZ(TString path, TString prefix, int nFiles){
 	mg->Add( grx );
 	mg->Add( gry );
 	mg->Add( grz );
-	mg->GetXaxis()->SetLimits(0,40);
-	mg->SetMinimum(-0.3);
-	mg->SetMaximum(0.25);
+	mg->GetXaxis()->SetLimits(start,end);
+	mg->SetMinimum(-0.1);
+	mg->SetMaximum(0.05);
 	mg->GetXaxis()->SetTitle("time (s)");
 	mg->GetYaxis()->SetTitle("Accelerometer Response (V)");	
 	mg->Draw("AL");

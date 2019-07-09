@@ -30,7 +30,7 @@ int f_nyq;
 double df;
 
 
-void singleNPS(TTree *tree, vector<double>& psx, vector<double>& psy, vector<double> & psz, int filenum){
+void singleNPS(TTree *tree, vector<double>& psx, vector<double>& psy, vector<double>& psz, int filenum){
 
 	vector<double> *w0 = new vector<double>;
 	vector<double> *w1 = new vector<double>;
@@ -191,22 +191,22 @@ void plotNPSAvgXYZ(TString path, TString prefix, int nFiles){
 	gry->SetLineWidth(2);
 	grz->SetTitle("Z");
 	grz->SetLineColor(kBlue);
-	grz->SetLineWidth(2);
+	grz->SetLineWidth(2); 
 	mg->Add( grx );
 	mg->Add( gry );
 	mg->Add( grz );
-	//mg->GetXaxis()->SetLimits(1,1000);
-	//mg->SetMinimum(1E-08);
-	//mg->SetMaximum(100);
+	mg->GetXaxis()->SetLimits(0.01,f_nyq);
+	mg->SetMinimum(1E-08);
+	mg->SetMaximum(100);
 
-	mg->SetTitle(Form("NPS Averaged over %d Runs: Quiet Tests; frequency (Hz); Noise Power Density (V^2/Hz)",nFiles));
+	mg->SetTitle(Form("NPS Averaged over %d runs: Speaker Tests; frequency (Hz); Noise Power Density (V^2/Hz)", nFiles));
 
 	mg->Draw("AL");
 	c0->BuildLegend();
 	c0->Modified();
 	c0->Update();
-	c0->SaveAs(Form("NPS_Avg_%d.png", nFiles));
-	TFile* file1 = new TFile(Form("NPS_Avg_%d.root",nFiles),"recreate");
+	c0->SaveAs(Form("SpeakerTests_%d.png", nFiles));
+	TFile* file1 = new TFile(Form("SpeakerTests_%d.root",nFiles),"recreate");
 	file1->cd();
 	c0->Write("c0");
 	file1->Close();
@@ -229,7 +229,6 @@ int main(int argc, char **argv) {
 	int nFiles = atoi(argv[3]);
 
 	plotNPSAvgXYZ(path, prefix, nFiles);
-	cout << "Plot Generated (in theory)" << endl;
 
 	cout << "N = " << N << endl;
 	cout << "Sampling Frequency is: " << f_samp << endl;
