@@ -249,7 +249,7 @@ def plotter(filename, imgPath):
     plt.legend()
     plt.grid()
     imgPath = imgPath + filename.split('.')[0].split('/')[-1] + "_timestream.png"
-    print(imgPath + "Img path")
+    
     title = input("Enter timestream title: ")
     plt.savefig(imgPath)
     #plt.show()
@@ -271,7 +271,7 @@ def psd_averaging(windows_to_average, window_size, sampling_rate, micG):
     
     return f, PSD_output
 
-def main(key, Unix, sort, window_size=None, windows_to_average=None, cutoff=None, xlim=None, ylim=None, loglog=True):
+def main(key, window_size=None, windows_to_average=None, cutoff=None, xlim=None, ylim=None, loglog=True):
     repoPath = os.environ['ANALYSISREPO']
     dataPath = repoPath + "/data/csv/"
     imgPath = repoPath + "/images/"
@@ -292,12 +292,8 @@ def main(key, Unix, sort, window_size=None, windows_to_average=None, cutoff=None
 argc = len(sys.argv)
 if argc == 2:
     key = str(sys.argv[1])
-    main(key,Unix = True, sort = False)
-elif (argc > 2 and argc <= 4):
-    Unix = sys.argv[2]
-    sort = sys.argv[3]	
-    if (Unix == True or Unix == False and (sort == True or sort == False)):
-        main(key, Unix, sort)
+    main(key)
+
 else: 
     print("Run as python Accel_Analysis_csv.py <key> <Unix = True or False> <sort = True or False> ")
     
