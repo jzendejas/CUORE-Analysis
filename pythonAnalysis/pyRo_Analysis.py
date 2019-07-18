@@ -21,11 +21,69 @@ import sys
 
 
 # In[ ]:
+def butter_lowpass(cutoff, fs, order=5):
+    #fs sample rate in Hz
+    #desired cutoff frequency of filter in Hz
+    nyq = 0.5*fs
+    normal_cutoff = cutoff / nyq
+    b, a = sp.signal.butter(order, normal_cutoff, btype='low', analog=False)
+    return b, a
+
+def butter_lowpass_filter(data, cutoff, fs, order=5):
+    #fs sample rate in Hz
+    #desired cutoff frequency of filter in Hz
+    b, a = butter_lowpass(cutoff, fs, order=order)
+    y = sp.signal.lfilter(b, a, data)
+    return y
 
 
 def findOccurrences(s, ch):
     return [i for i, letter in enumerate(s) if letter == ch]
 
+def fft_avg(fulldata, sampling_rates, windows_to_average, window_size, cutoff):
+	assert (type(window_size+windows_to_average) == int), "Both window_size and windows_to_average must be integers"
+
+	sums = 0
+	samps = {}
+	
+	for i in range(fulldata["num_of_channels"]):
+		for j in range(windows_to_average):
+			samps[j] = fulldata["wave"+str(i)][j*window_size : ((j*window_size)+(window_size-1))]
+			if type(cutoff) != type(None):
+				samps[j] = butter_lowpass_filter(samps[j], cutoff, fs=sampling_rates[0], order=4)
+			np.multiply(samps[j], gauss_wind(window_size, 0.5), out = samps[j], casting = 'unsafe')
+			samps[j] = np.fft.fft(samps[j])
+		
+		for k in range(windows_to_average):
+			sums += samps[k]
+		
+		FFT_output = sums/windows_to_average
+		yF = 2./window_size*np.absolute(FFT_output[1:window_size//2])
+		
+		fulldata["FFT_wave"+str(i)] = yF
+	fulldata["M"], fulldata["N"] = windows_to_average, window_size
+	return fulldata
+
+
+def fft_no_avg(fulldata, sampling_rates, cutoff):
+	for i in range(fulldata["num_of_channels"]):
+		if type(cutoff) != type(None):
+			fulldata["FFT_wave"+str(i)] = butter_lowpass_filter(fulldata["wave"+str(i)], cutoff, fs=sampling_rates[0], order=4)
+			np.multiply(fulldata["FFT_wave"+str(i)], gauss_wind(len(fulldata["times"])+1, 0.5), out = fulldata["FFT_wave"+str(i)], casting = 'unsafe')
+		else:
+			fulldata["FFT_wave"+str(i)] = np.empty(len(fulldata["wave"+str(i)]))
+			np.multiply(fulldata["wave"+str(i)], gauss_wind(len(fulldata["times"])+1, 0.5), out = fulldata["FFT_wave"+str(i)], casting = 'unsafe')
+		fulldata["FFT_wave"+str(i)] = np.fft.fft(fulldata["FFT_wave"+str(i)])
+		fulldata["FFT_wave"+str(i)] = 2./len(fulldata["times"])*np.absolute(fulldata["FFT_wave"+str(i)][1:len(fulldata["times"])//2])
+	return fulldata
+
+
+def gauss_wind(N, sigma):
+    M = N - 2 
+    w = np.zeros(M+1)
+    for i in range(M+1):
+        w[i] = np.exp(-0.5*(((i - M)/2)/(sigma*M/2))*(((i - M)/2)/(sigma*M/2)))
+    return w
 
 def get_files(dataPath, key):
     print("The data path is: " + dataPath)
@@ -39,6 +97,21 @@ def get_files(dataPath, key):
     return file_array, shortFilename
 
     
+def get_fft(fulldata, sampling_rates, windows_to_average, window_size, cutoff):
+	if windows_to_average == None and window_size == None:
+		fulldata = fft_no_avg(fulldata, sampling_rates, cutoff)
+	
+	else:
+	    fulldata = fft_avg(fulldata, sampling_rates, windows_to_average, window_size)
+		
+	for i in range(fulldata["num_of_channels"]):	
+		try:	
+			fulldata["FFT_f_wave"+str(i)] = np.linspace(0, 1.0/(2.0/sampling_rates[0]), window_size//2-1)
+		except TypeError:
+			fulldata["FFT_f_wave"+str(i)] = np.linspace(0, 1.0/(2.0/sampling_rates[0]), len(fulldata["times"])//2-1)
+		
+	return fulldata
+
 def get_fullwave(filename, dataPath=None, num_of_files=None):
     filelist, shortFilename = get_files(dataPath, filename) 
 
@@ -61,7 +134,7 @@ def get_fullwave(filename, dataPath=None, num_of_files=None):
         return
 
     return fulldata, sampling_rates, shortFilename
-        
+    
 
 def get_plot(fulldata, sampling_rates, path, shortFilename, calculation=None):
     plt.figure()
@@ -105,8 +178,7 @@ def grab_data(filename):
     data = {}
     data["times"] = np.linspace(0, (nTotal-1)*dt, nTotal)
 
-    for i,j in enumerate(Branch_List[4::]): 
-        print '\r',"Getting ",j,
+    for i,j in enumerate(Branch_List[4::]):
         data["wave"+str(i)] = (np.asarray([[getattr(tree, j)[0::]] for event in tree])).flatten()
         
     return data, sampling_rate, dt
@@ -131,7 +203,10 @@ def plot_mic(fulldata, sampling_rates, path, shortFilename, calculation):
     elif calculation == 'fft':
         plt.loglog(fulldata["FFT_f_wave"+str(fulldata["num_of_channels"]-1)], fulldata["FFT_wave"+str(fulldata["num_of_channels"]-1)], label="Mic")
         plt.title(shortFilename+"_FFT")
-        txt = 'Average of '+str(fulldata["M"])+', '+str(fulldata["N"])+' point samples'
+        try:
+			txt = 'Average of '+str(fulldata["M"])+', '+str(fulldata["N"])+' point samples, Sampling Rate: '+str(sampling_rates[0]/1000)+' kHz'
+        except KeyError:
+            txt = ""
         my_file2 = str(path) + str(shortFilename) + "_micFFT.png"
     plt.figtext(0.5, -0.034, txt, wrap=True, horizontalalignment='center', fontsize=12)
     plt.legend(loc=0)
@@ -155,10 +230,13 @@ def plot_waves(fulldata, sampling_rates, j, path, shortFilename, calculation):
         except KeyError:
 			txt = ""
     elif calculation == 'fft':
-        plt.loglog(fulldata["times"], fulldata["wave"+str(j)], label = "wave "+str(j))
+        plt.loglog(fulldata["FFT_f_wave"+str(j)], fulldata["FFT_wave"+str(j)], label = "wave "+str(j))
         plot_title = shortFilename+"_FFT"
         my_file = str(path) + str(shortFilename) + "_FFT.png"
-        txt = 'Average of '+str(fulldata["M"])+', '+str(fulldata["N"])+' point samples'
+        try:
+			txt = 'Average of '+str(fulldata["M"])+', '+str(fulldata["N"])+' point samples, Sampling Rate: '+str(sampling_rates[0]/1000)+' kHz'
+        except KeyError:
+			txt = ""
     return plot_title, txt, my_file
 
 
@@ -180,8 +258,8 @@ def psd_avg(fulldata, sampling_rates, windows_to_average, window_size):
 		PSD_output = sums/windows_to_average
 		
 		fulldata["PSD_f_wave"+str(i)], fulldata["PSD_wave"+str(i)] = f, PSD_output
-		fulldata["M"], fulldata["N"] = windows_to_average, window_size
-		return fulldata
+	fulldata["M"], fulldata["N"] = windows_to_average, window_size
+	return fulldata
 
 
 def psd_no_avg(fulldata, sampling_rates):
@@ -232,9 +310,10 @@ def main(filename, num_of_files=None, loglog=True, xlim=None, ylim=None, windows
 	
 	fulldata, sampling_rates, shortFilename = get_fullwave(filename, dataPath, num_of_files)
 	fulldata = get_psd(fulldata, sampling_rates, windows_to_average, window_size)
+	fulldata = get_fft(fulldata, sampling_rates, windows_to_average, window_size, cutoff)
 	get_plot(fulldata, sampling_rates, imgPath, shortFilename, calculation="ts")
 	get_plot(fulldata, sampling_rates, imgPath, shortFilename, calculation="psd")
-	#get_FFT(data, imgPath, window_size, windows_to_average, cutoff, xlim, ylim)
+	get_plot(fulldata, sampling_rates, imgPath, shortFilename, calculation="fft")
 	
 # ## Execute Main
 
