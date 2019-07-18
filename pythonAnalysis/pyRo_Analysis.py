@@ -79,6 +79,16 @@ def get_plot(fulldata, sampling_rates, path, shortFilename, calculation=None):
     plot_mic(fulldata, sampling_rates, path, shortFilename, calculation)
         
 
+def get_psd(fulldata, sampling_rates, windows_to_average=None, window_size=None):
+    if windows_to_average == None and window_size == None:
+		fulldata = psd_no_avg(fulldata, sampling_rates)
+	
+    else:
+	    fulldata = psd_avg(fulldata, sampling_rates, windows_to_average, window_size)
+	
+    return fulldata
+    
+
 def grab_data(filename):
     myfile = TFile(str(filename), 'read')
     tree = myfile.Get("data_tree")
@@ -93,7 +103,7 @@ def grab_data(filename):
     sampling_rate = int(1/dt)
 
     data = {}
-    data["times"] = np.linspace(0, nTotal*dt-dt, nTotal)
+    data["times"] = np.linspace(0, (nTotal-1)*dt, nTotal)
 
     for i,j in enumerate(Branch_List[4::]): 
         print '\r',"Getting ",j,
@@ -104,21 +114,27 @@ def grab_data(filename):
     
 def plot_mic(fulldata, sampling_rates, path, shortFilename, calculation):
     plt.figure()
-    plt.plot(fulldata["fulltime"], fulldata["fullwave"+str(fulldata["num_of_channels"]-1)], label="Mic")
-    plt.legend(loc=0)
+    
     if calculation == "ts":
+        plt.plot(fulldata["times"], fulldata["wave"+str(fulldata["num_of_channels"]-1)], label="Mic")
         plt.title(shortFilename+"_TimeStream")
         txt = ""
         my_file2 = str(path) + str(shortFilename) + "_micTS.png"
     elif calculation == 'psd':
+        plt.loglog(fulldata["PSD_f_wave"+str(fulldata["num_of_channels"]-1)], fulldata["PSD_wave"+str(fulldata["num_of_channels"]-1)], label="Mic")
         plt.title(shortFilename+"_PSD")
-        txt = 'Average of '+str(fulldata["M"])+', '+str(fulldata["N"])+' point samples, Sampling Rate: '+str(sampling_rates[0]/1000)+' kHz'
+        try:
+			txt = 'Average of '+str(fulldata["M"])+', '+str(fulldata["N"])+' point samples, Sampling Rate: '+str(sampling_rates[0]/1000)+' kHz'
+        except KeyError:
+            txt = ""
         my_file2 = str(path) + str(shortFilename) + "_micPSD.png"
     elif calculation == 'fft':
+        plt.loglog(fulldata["FFT_f_wave"+str(fulldata["num_of_channels"]-1)], fulldata["FFT_wave"+str(fulldata["num_of_channels"]-1)], label="Mic")
         plt.title(shortFilename+"_FFT")
         txt = 'Average of '+str(fulldata["M"])+', '+str(fulldata["N"])+' point samples'
         my_file2 = str(path) + str(shortFilename) + "_micFFT.png"
     plt.figtext(0.5, -0.034, txt, wrap=True, horizontalalignment='center', fontsize=12)
+    plt.legend(loc=0)
     plt.grid()
     plt.savefig(my_file2)
     plt.show()
@@ -126,40 +142,71 @@ def plot_mic(fulldata, sampling_rates, path, shortFilename, calculation):
     
 def plot_waves(fulldata, sampling_rates, j, path, shortFilename, calculation):   
     if calculation == "ts":
-        plt.plot(fulldata["fulltime"], fulldata["fullwave"+str(j)], label = "wave "+str(j))
+        plt.plot(fulldata["times"], fulldata["wave"+str(j)], label = "wave "+str(j))
         plot_title = shortFilename+"_TimeStream"
         my_file = str(path) + str(shortFilename) + "_TS.png"
         txt = ""
     elif calculation == 'psd':
-        plt.loglog(fulldata["fulltime"], fulldata["fullwave"+str(j)], label = "wave "+str(j))
+        plt.loglog(fulldata["PSD_f_wave"+str(j)], fulldata["PSD_wave"+str(j)], label = "wave "+str(j))
         plot_title = shortFilename+"_PSD"
         my_file = str(path) + str(shortFilename) + "_PSD.png"
-        txt = 'Average of '+str(fulldata["M"])+', '+str(fulldata["N"])+' point samples, Sampling Rate: '+str(sampling_rates[0]/1000)+' kHz'
+        try:
+			txt = 'Average of '+str(fulldata["M"])+', '+str(fulldata["N"])+' point samples, Sampling Rate: '+str(sampling_rates[0]/1000)+' kHz'
+        except KeyError:
+			txt = ""
     elif calculation == 'fft':
-        plt.loglog(fulldata["fulltime"], fulldata["fullwave"+str(j)], label = "wave "+str(j))
+        plt.loglog(fulldata["times"], fulldata["wave"+str(j)], label = "wave "+str(j))
         plot_title = shortFilename+"_FFT"
         my_file = str(path) + str(shortFilename) + "_FFT.png"
         txt = 'Average of '+str(fulldata["M"])+', '+str(fulldata["N"])+' point samples'
     return plot_title, txt, my_file
 
 
+def psd_avg(fulldata, sampling_rates, windows_to_average, window_size):
+	
+	assert (type(window_size+windows_to_average) == int), "Both window_size and windows_to_average must be integers"
+		
+	sums = 0
+	samps = {}
+	
+	for i in range(fulldata["num_of_channels"]):
+		for j in range(windows_to_average):
+			samps[j] = fulldata["wave"+str(i)][j*window_size : ((j*window_size)+(window_size-1))]
+			f, samps[j] = sig.periodogram(samps[j], fs=sampling_rates[0])
+			
+		for k in range(windows_to_average):
+			sums += samps[k]
+			
+		PSD_output = sums/windows_to_average
+		
+		fulldata["PSD_f_wave"+str(i)], fulldata["PSD_wave"+str(i)] = f, PSD_output
+		fulldata["M"], fulldata["N"] = windows_to_average, window_size
+		return fulldata
+
+
+def psd_no_avg(fulldata, sampling_rates):
+	for i in range(fulldata["num_of_channels"]):
+		fulldata["PSD_f_wave"+str(i)], fulldata["PSD_wave"+str(i)] = sig.periodogram(fulldata["wave"+str(i)], fs=sampling_rates[0])
+	return fulldata	
+
+	
 def stitch_data(filelist):
     #used to check the number of channels being read in from the data file
     dummy_data, dummy_sampling_rate, dummy_dt = grab_data(filelist[0])
     num_of_channels = len(dummy_data)-1
     
     fulldata = {}
-    fulldata["fulltime"] = np.array([])
+    fulldata["times"] = np.array([])
     for i in range(num_of_channels):
-        fulldata["fullwave"+str(i)] = np.array([])
+        fulldata["wave"+str(i)] = np.array([])
         
     sampling_rates = np.array([])
     
     for i in filelist:
         data, sampling_rate, dt = grab_data(i)
         for j in range(num_of_channels):
-            fulldata["fullwave"+str(j)] = np.append(fulldata["fullwave"+str(j)], data["wave"+str(j)])
-        fulldata["fulltime"] = np.append(fulldata["fulltime"], (data["times"] +  ( len(sampling_rates) * (data["times"][-1]+dt) )   ))
+            fulldata["wave"+str(j)] = np.append(fulldata["wave"+str(j)], data["wave"+str(j)])
+        fulldata["times"] = np.append(fulldata["times"], (data["times"] +  ( len(sampling_rates) * (data["times"][-1]+dt) )   ))
         sampling_rates = np.append(sampling_rates, sampling_rate)
         if len(sampling_rates) > 1:
             if sampling_rates[-1] != sampling_rates[-2]:
@@ -179,15 +226,15 @@ def write_shortFilename(filename):
 
 
 def main(filename, num_of_files=None, loglog=True, xlim=None, ylim=None, windows_to_average=None, window_size=None, cutoff=None):
-    repoPath = os.environ['ANALYSISREPO']
-    dataPath = repoPath + "/data/root/"
-    imgPath = repoPath + "/images/"
+	repoPath = os.environ['ANALYSISREPO']
+	dataPath = repoPath + "/data/root/"
+	imgPath = repoPath + "/images/"
 	
-	
-    fulldata, sampling_rates, shortFilename = get_fullwave(filename, dataPath, num_of_files)
-    get_plot(fulldata, sampling_rates, imgPath, shortFilename, calculation="ts")
-    #get_psd(data, imgPath, loglog, xlim, ylim, windows_to_average, window_size)
-    #get_FFT(data, imgPath, window_size, windows_to_average, cutoff, xlim, ylim)
+	fulldata, sampling_rates, shortFilename = get_fullwave(filename, dataPath, num_of_files)
+	fulldata = get_psd(fulldata, sampling_rates, windows_to_average, window_size)
+	get_plot(fulldata, sampling_rates, imgPath, shortFilename, calculation="ts")
+	get_plot(fulldata, sampling_rates, imgPath, shortFilename, calculation="psd")
+	#get_FFT(data, imgPath, window_size, windows_to_average, cutoff, xlim, ylim)
 	
 # ## Execute Main
 
