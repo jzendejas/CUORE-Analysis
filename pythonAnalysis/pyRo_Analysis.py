@@ -40,6 +40,7 @@ def butter_lowpass_filter(data, cutoff, fs, order=5):
 def findOccurrences(s, ch):
 	return [i for i, letter in enumerate(s) if letter == ch]
 
+	
 def fft_avg(fulldata, sampling_rates, windows_to_average, window_size, cutoff):
 	assert (type(window_size+windows_to_average) == int), "Both window_size and windows_to_average must be integers"
 
@@ -85,6 +86,7 @@ def gauss_wind(N, sigma):
 		w[i] = np.exp(-0.5*(((i - M)/2)/(sigma*M/2))*(((i - M)/2)/(sigma*M/2)))
 	return w
 
+	
 def get_files(dataPath, key):
 	print("The data path is: " + dataPath)
 	pathdir = os.listdir(dataPath)
@@ -112,6 +114,7 @@ def get_fft(fulldata, sampling_rates, windows_to_average, window_size, cutoff):
 		
 	return fulldata
 
+	
 def get_fullwave(filename, dataPath=None, num_of_files=None):
 	filelist, shortFilename = get_files(dataPath, filename) 
 
@@ -139,7 +142,7 @@ def get_fullwave(filename, dataPath=None, num_of_files=None):
 def get_plot(fulldata, sampling_rates, path, shortFilename, calculation=None):
 	plt.figure()
 	
-	for j in range(fulldata["nInputs"]-1):
+	for j in range(fulldata["nInputs"]):
 		plot_title, txt, my_file = plot_waves(fulldata, sampling_rates, j, path, shortFilename, calculation)
 		
 	plt.title(plot_title)
@@ -149,7 +152,7 @@ def get_plot(fulldata, sampling_rates, path, shortFilename, calculation=None):
 	plt.savefig(my_file)
 	plt.show()
 	
-	plot_mic(fulldata, sampling_rates, path, shortFilename, calculation)
+	#plot_mic(fulldata, sampling_rates, path, shortFilename, calculation)
 		
 
 def get_psd(fulldata, sampling_rates, windows_to_average=None, window_size=None):
