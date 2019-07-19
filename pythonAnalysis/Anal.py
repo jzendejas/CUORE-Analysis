@@ -33,8 +33,10 @@ def findOccurrences(s, ch):
 
 def write_shortFilename(filename):
     shortFilename = filename.split("/")[-1]
-    shortFilename_index = findOccurrences(shortFilename, '_')[-2]
-    shortFilename = shortFilename[0:shortFilename_index]
+    chunks = findOccurrences(shortFilename, '_')
+        if len(chunks) > 3:
+            index = findOccurences(shortFilename,'_')[-2]
+            shortFilename = shortFilename[0:index]
     return shortFilename
 	
 	
@@ -406,7 +408,6 @@ def main(filename, num_of_files=None, loglog=True, xlim=None, ylim=None, windows
 	
 	
     data = get_fullwave(filename, dataPath, num_of_files)
-    #paths = set_paths(path)
     get_timestream(data, path=imgPath)
     get_psd(data, imgPath, loglog, xlim, ylim, windows_to_average, window_size)
     get_FFT(data, imgPath, window_size, windows_to_average, cutoff, xlim, ylim)
