@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
-
+# 0:accx 1:accy 2:accz 3:mic1
 # In[1]:
 
 
@@ -70,7 +70,79 @@ def write_channel_list(spaces, channel_list):
 	return channel_dict
 
 	
+##New Plotting Function (and its sub functions)
+###Find best axis limits
+def simple_search(a, max_or_min):
+    if max_or_min == "max":
+        return max(a)
+    elif max_or_min == "min":
+        return min(a)
+    else:
+        print("Please specify max or min.")
+        return
+def find_best_lims(channel_objs, calculation):
+    uylims = []
+    lylims = []
+    uxlims = []
+    lxlims = []
+    for i in channel_objs:
+        lims = i.axis_limits(calculation)
+        uylims.append(lims[0])
+        lylims.append(lims[1])
+        uxlims.append(lims[2])
+        lxlims.append(lims[3])
+    Uylim = simple_search(uylims, max_or_min="max")
+    Lylim = simple_search(lylims, max_or_min="min")
+    Uxlim = simple_search(uxlims, max_or_min="max")
+    Lxlim = simple_search(lxlims, max_or_min="min")
+    Xlimits = [Lxlim, Uxlim]
+    Ylimits = [Lylim, Uylim]
+    return Xlimits, Ylimits
 
+
+###Actual Plotting of the function
+def hp_gen(calculation, channel_objs, shortFilename, path):
+	plt.figure()
+	plot_title = shortFilename+"_"+str(calculation)
+	plt.title(plot_title)
+	x_attribute = "x_"+str(calculation)
+	y_attribute = "y_"+str(calculation)
+	temp_dev_objs = []
+	for i,j in enumerate(channel_objs):
+		if i == 0:
+			prev_dev = getattr(j, "device")
+			plt.plot(getattr(j, x_attribute), getattr(j, y_attribute), label=str(getattr(j, "name")))
+			temp_dev_objs.append(j)
+		else: 
+			dev = getattr(j, "device")
+			if prev_dev == dev:
+				plt.plot(getattr(j, x_attribute), getattr(j, y_attribute), label=str(getattr(j, "name")))
+				prev_dev = getattr(j, "device")
+				temp_dev_objs.append(j)
+			else:
+				plt.legend(loc=0)
+				my_file = str(path)+str(shortFilename)+str(prev_dev)+"_"+str(calculation)
+				Xlimits, Ylimits = find_best_lims(temp_dev_objs, calculation)
+				plt.xlim(Xlimits)
+				plt.ylim(Ylimits)
+				plt.savefig(my_file)
+				plt.show()
+				temp_dev_objs = []
+				plt.figure()
+				plt.plot(getattr(j, x_attribute), getattr(j, y_attribute), label=str(getattr(j, "name")))
+				prev_dev = getattr(j, "device")
+				temp_dev_objs.append(j)
+	plt.legend(loc=0)
+	my_file = str(path)+str(shortFilename)+str(dev)+"_"+str(calculation)
+	Xlimits, Ylimits = find_best_lims(temp_dev_objs, calculation)
+	plt.xlim(Xlimits)
+	plt.ylim(Ylimits)
+	plt.savefig(my_file)
+	plt.show()
+	return	
+	
+###Quoted functions have (hopefully) been replaced with hp_gen	
+"""	
 def hp_TS(calculation, channel_objs, shortFilename, path):
 	plt.figure()
 	plot_title = shortFilename+"_Timestream"
@@ -96,8 +168,7 @@ def hp_TS(calculation, channel_objs, shortFilename, path):
 	my_file = str(path)+str(shortFilename)+str(dev)+"_TS"
 	plt.savefig(my_file)
 	plt.show()
-	return
-	
+	return	
 def hp_FFT(calculation, channel_objs, shortFilename, path):
     plt.figure()
     plot_title = shortFilename+"_FFT"
@@ -124,7 +195,6 @@ def hp_FFT(calculation, channel_objs, shortFilename, path):
     plt.savefig(my_file)
     plt.show()
     return
-
 def hp_PSD(calculation, channel_objs, shortFilename, path):
 	plt.figure()
 	plot_title = shortFilename+"_PSD"
@@ -152,40 +222,67 @@ def hp_PSD(calculation, channel_objs, shortFilename, path):
 	plt.savefig(my_file)
 	plt.show()
 	return
-	
-
+"""		
 def hyper_plots(calculation, channel_objs, shortFilename, path):
-    if calculation == "ts":
-        hp_TS(channel_objs)
-		
-    elif calculation == "fft":
-        hp_FFT(channel_objs)
-		
-    elif calculation == "psd":
-        hp_PSD(channel_objs)
+    if calculation == "ts" or calculation == "fft" or calculation == "psd":
+        hp_gen(calculation, channel_objs, shortFilename, path)
     else:
         print("Input not Understood: Please use Keys; 'ts', 'fft', 'psd'")
     return
 
 	
+###Simple Notch filter functions	
+def notch_filter(yf, f0, fs, Q):
+    b, a = sig.irrnotch(f0, Q, fs)
+    freq, h = sig.freqz(b, a, fs=fs)
+    yf *= h
+    return yf
+def harmonic_notch_filter(yf, f0, fs, Q, harmonic_multiple):
+    for i in range(1,harmonic_multiple+1):
+        yf = notch_filter(yf, f0*i, fs, Q)
+    return yf
+	
 
 	
-#Create obj class
 class Data_Channel:
 	
 	#Initializer
-	def __init__(self, name, device, time, freqs_fft, freqs_psd, wave, fft, psd, sampling_rate):
-		self.name = name
-		self.device = device
-		self.time = time
-		self.freqsf = freqs_fft
-		self.freqp = freqs_psd
-		self.wave = wave
-		self.fft = fft 
-		self.psd = psd
-		self.fs = sampling_rate
-
-
+    def __init__(self, name, device, time, freqs_fft, freqs_psd, wave, fft, psd, sampling_rate):
+        self.name = name
+        self.device = device
+        self.x_ts = time
+        self.x_fft = freqs_fft
+        self.x_psd = freqs_psd
+        self.y_ts = wave
+        self.y_fft = fft 
+        self.y_psd = psd
+        self.fs = sampling_rate
+		
+		
+		
+	#Instance Method
+    def axis_limits(self, calculation):
+        if calculation == "ts":
+            Uylim, Lylim = max(getattr(self, "y_ts")) + max(getattr(self, "y_ts"))*0.1, min(getattr(self, "y_ts")) - min(getattr(self, "y_ts"))*0.1
+            Uxlim_index = np.where(self.y_ts>=0.1*max(self.y_ts))[0][-1] 
+            Uxlim = self.x_ts[Uxlim_index]
+            Uxlim += ((Uxlim - min(self.x_ts))*0.1)
+            Uxlim = int(Uxlim)
+        elif calculation == "fft":
+            Uylim, Lylim = max(getattr(self, "y_fft")) + max(getattr(self, "y_fft"))*0.1, min(getattr(self, "y_fft")) - min(getattr(self, "y_fft"))*0.1
+            Uxlim_index = np.where(self.y_fft>=0.1*max(self.y_fft))[0][-1] 
+            Uxlim = self.x_fft[Uxlim_index]
+            Uxlim += ((Uxlim - min(self.x_fft))*0.1)
+            Uxlim = int(Uxlim)
+        elif calculation ==  "psd":
+            Uylim, Lylim = max(getattr(self, "y_psd")) + max(getattr(self, "y_psd"))*0.1, min(getattr(self, "y_psd")) - min(getattr(self, "y_psd"))*0.1
+            Uxlim_index = np.where(self.y_psd>=0.1*max(self.y_psd))[0][-1]
+            Uxlim = self.x_psd[Uxlim_index]
+            Uxlim += ((Uxlim - min(self.x_psd))*0.1)
+            Uxlim = int(Uxlim)
+        Lxlim = min(self.x_ts)
+        lims = np.array([Uylim, Lylim, Uxlim, Lxlim])
+        return lims
 
 
 
@@ -479,13 +576,14 @@ def write_shortFilename(filename):
 
 def main(filename, num_of_files=None, loglog=True, xlim=None, ylim=None, windows_to_average=None, window_size=None, cutoff=None):
     repoPath = os.environ['ANALYSISREPO']
+    #repoPath = "/global/u2/z/zendejas/CUORE/Raw_Data/root_files/Analysis"
     dataPath = repoPath + "/data/root/"
     imgPath = repoPath + "/images/"
 	
 	#Request Channel Info from User		
     spaces, channel_list = confirm_channel_list()
     channel_dict = write_channel_list(spaces, channel_list)
-
+    
 	#Collect Object Values
     print("Collecting full datastream...")	
     fulldata, sampling_rates, shortFilename = get_fullwave(filename, dataPath, num_of_files)
@@ -494,20 +592,23 @@ def main(filename, num_of_files=None, loglog=True, xlim=None, ylim=None, windows
     fulldata = get_psd(fulldata, sampling_rates, windows_to_average, window_size)
     
     print("Getting FFT...")
-	fulldata = get_fft(fulldata, sampling_rates, windows_to_average, window_size, cutoff)
+    fulldata = get_fft(fulldata, sampling_rates, windows_to_average, window_size, cutoff)
 	
 	#Create obj instances from fulldata
     channel_objs = []
-    for i in range(fulldata[nInputs]):
+    for i in range(fulldata["nInputs"]):
 	    channel_objs.append("channel"+str(i))
-    for i,j in enumerate(channel_objs):
-	    j = Data_Channel(channel_dict[i], channel_dict[i][0], channel_dict[i][1], fulldata["times"], fulldata["FFT_f_wave"+str(i)], fulldata["PSD_f_wave"+str(i)], i, fulldata["FFT_wave"+str(i)], fulldata["PSD_wave"+str(i)], sampling_rates[0])
-	    channel_objs.append(wave+str(i))
+    print(channel_objs)
+    for i, j in enumerate(channel_objs):
+        print(fulldata["wave"+str(i)])
+        j = Data_Channel(channel_dict[i][0], channel_dict[i][1], fulldata["times"], fulldata["FFT_f_wave"+str(i)], fulldata["PSD_f_wave"+str(i)], fulldata["wave"+str(i)], fulldata["FFT_wave"+str(i)], fulldata["PSD_wave"+str(i)], sampling_rates[0])
+        channel_objs[i] = j
 	
-	
-	plotss = ["ts", "fft", "psd"]
-	for i in plotss:
-		hyper_plots(str(i), channel_objs, shortFilename, imgPath)
+    print(channel_objs)
+    plotss = ["ts", "fft", "psd"]
+    for i in plotss:
+        print(i)
+        hyper_plots(str(i), channel_objs, shortFilename, imgPath)
 	
 	#Hyper_Plts should handle plotting better
     #get_plot(fulldata, sampling_rates, imgPath, shortFilename, calculation="ts")
