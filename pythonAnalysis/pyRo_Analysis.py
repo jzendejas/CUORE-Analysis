@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
-# 0:accx 1:accy 2:accz 3:mic1
+# 0:accx,1:accy,2:accz,3:mic1
 # In[1]:
 
 
@@ -19,7 +19,61 @@ import os
 import sys
 #get_ipython().run_line_magic('matplotlib', 'inline')
 
-###New Helper Functions: Used in user-requested Channel labeling and object instancing.
+###New: Plotting User Prompts
+def request_plotting_setting():
+    confirm = "n"
+    while confirm != "y":
+        ps = input("Would you like custom or automatic plotting? (custom/auto)" )
+        if ps == "automatic":
+            ps = "auto"
+        confirm = input("Are you sure? (y/n)")
+    return ps
+	
+	
+def custom_plots_settings(ps):
+    confirm = "n"
+    while confirm != "y":
+        print("Initializing custom plots..")
+        num_of_plots = input("How many plots would you like to generate?")
+        plot_channel_map = {}
+        plot_title_map = {}
+        assert type(num_of_plots) == int, "The Number of Plots to Generate must be an integer"
+        for i in range(num_of_plots):
+            plot_channel_map["plot"+str(i+1)] = input("Plot "+str(i+1)+" : Please enter devices to be plotted (accx,mic1,TES1,etc)")
+            plot_title["plot"+str(i+1)] = input("Plot "+str(i+1)+" : Please enter general plot title (Accelerometers)")
+        print("You have entered the following:", '\n')
+        for i in range(num_of_plots):
+            print("Plot "+str(i+1))
+            print("Title")
+            print(plot_title_map["plot"+str(i+1)])
+            print("Devices")
+            print(plot_channel_map["plot"+str(i+1)])
+        confirm = input("Is this correct? (y/n)")
+		
+    plot_channel_map = separate_plot_map(plot_channel_map)
+    return plot_channel_map, plot_title_map
+	
+def separate_plot_map(plot_channel_map):
+	count = 0 
+	map_2 = {}
+	for j in plot_channel_map:
+		commas = findOccurrences(plot_channel_map[j], ",")
+		map_2[j] = []
+		for i in commas:
+			if count == 0:
+				map_2[j].append(plot_channel_map[j][:i])
+				count += 1
+				i_prev = i
+			else:
+				map_2[j].append(plot_channel_map[j][i_prev+1:i])
+				i_prev = i
+				count += 1
+			if i == commas[-1]:
+				map_2[j].append(plot_channel_map[j][i+1::])
+	return map_2
+
+
+###Helper Functions: Used in user-requested Channel labeling and object instancing.
 def print_channel_list(spaces, channel_list):
 	count = 0
 	for i in spaces:
@@ -38,8 +92,8 @@ def print_channel_list(spaces, channel_list):
 def confirm_channel_list():
 	confirmed = False
 	while confirmed == False:
-		channel_list = input("Please enter channel number with associated device name (ex: 0:accx 1:mic1 2:TES1  etc.)")
-		spaces = findOccurrences(channel_list, " ")
+		channel_list = input("Please enter channel number with associated device name (ex: 0:accx,1:mic1,2:TES1  etc.)")
+		spaces = findOccurrences(channel_list, ",")
 		print_channel_list(spaces, channel_list)
 		confirm = input("Confirm? (y/n)")
 		if confirm == "y":
@@ -54,6 +108,7 @@ def confirm_channel_list():
 def write_channel_list(spaces, channel_list):
 	count = 0
 	channel_dict = {}
+	
 	for i in spaces:
 		if count == 0:
 			channel_dict[count] = (channel_list[2:i], channel_list[2:i-1])
@@ -70,7 +125,7 @@ def write_channel_list(spaces, channel_list):
 	return channel_dict
 
 	
-##New Plotting Function (and its sub functions)
+##Plotting Function (and its sub functions)
 ###Find best axis limits
 def simple_search(a, max_or_min):
     if max_or_min == "max":
@@ -102,45 +157,82 @@ def find_best_lims(channel_objs, calculation):
 
 ###Actual Plotting of the function
 def hp_gen(calculation, channel_objs, shortFilename, path):
-	plt.figure()
-	plot_title = shortFilename+"_"+str(calculation)
-	plt.title(plot_title)
-	x_attribute = "x_"+str(calculation)
-	y_attribute = "y_"+str(calculation)
-	temp_dev_objs = []
-	for i,j in enumerate(channel_objs):
-		if i == 0:
-			prev_dev = getattr(j, "device")
-			plt.plot(getattr(j, x_attribute), getattr(j, y_attribute), label=str(getattr(j, "name")))
-			temp_dev_objs.append(j)
-		else: 
-			dev = getattr(j, "device")
-			if prev_dev == dev:
-				plt.plot(getattr(j, x_attribute), getattr(j, y_attribute), label=str(getattr(j, "name")))
-				prev_dev = getattr(j, "device")
-				temp_dev_objs.append(j)
-			else:
-				plt.legend(loc=0)
-				my_file = str(path)+str(shortFilename)+str(prev_dev)+"_"+str(calculation)
-				Xlimits, Ylimits = find_best_lims(temp_dev_objs, calculation)
-				plt.xlim(Xlimits)
-				plt.ylim(Ylimits)
-				plt.savefig(my_file)
-				plt.show()
-				temp_dev_objs = []
-				plt.figure()
-				plt.plot(getattr(j, x_attribute), getattr(j, y_attribute), label=str(getattr(j, "name")))
-				prev_dev = getattr(j, "device")
-				temp_dev_objs.append(j)
-	plt.legend(loc=0)
-	my_file = str(path)+str(shortFilename)+str(dev)+"_"+str(calculation)
-	Xlimits, Ylimits = find_best_lims(temp_dev_objs, calculation)
-	plt.xlim(Xlimits)
-	plt.ylim(Ylimits)
-	plt.savefig(my_file)
-	plt.show()
-	return	
+    if calculation == "ts":
+        plotcalc = "plot"
+    elif calculation == "fft" or calculation == "psd":
+        plotcalc = "loglog"
+    #getattr(plt, plotcalc)()
+    plt.figure()
+    plot_title = shortFilename+"_"+str(calculation)
+    plt.title(plot_title)
+    x_attribute = "x_"+str(calculation)
+    y_attribute = "y_"+str(calculation)
+    temp_dev_objs = []
+    for i,j in enumerate(channel_objs):
+        if i == 0:
+            prev_dev = getattr(j, "device")
+            getattr(plt, plotcalc)(getattr(j, x_attribute), getattr(j, y_attribute), label=str(getattr(j, "name")))
+            temp_dev_objs.append(j)
+        else: 
+            dev = getattr(j, "device")
+            if prev_dev == dev:
+                getattr(plt, plotcalc)(getattr(j, x_attribute), getattr(j, y_attribute), label=str(getattr(j, "name")))
+                prev_dev = getattr(j, "device")
+                temp_dev_objs.append(j)
+            else:
+                plt.legend(loc=0)
+                my_file = str(path)+str(shortFilename)+str(prev_dev)+"_"+str(calculation)
+                Xlimits, Ylimits = find_best_lims(temp_dev_objs, calculation)
+                plt.xlim(Xlimits)
+                plt.ylim(Ylimits)
+                plt.savefig(my_file)
+                plt.show()
+                temp_dev_objs = []
+                plt.figure()
+                getattr(plt, plotcalc)(getattr(j, x_attribute), getattr(j, y_attribute), label=str(getattr(j, "name")))
+                prev_dev = getattr(j, "device")
+                temp_dev_objs.append(j)
+    plt.legend(loc=0)
+    my_file = str(path)+str(shortFilename)+str(dev)+"_"+str(calculation)
+    Xlimits, Ylimits = find_best_lims(temp_dev_objs, calculation)
+    plt.xlim(Xlimits)
+    plt.ylim(Ylimits)
+    plt.savefig(my_file)
+    plt.show()
+    return	
+def hp_custom(calculation, channel_objs, plot_channel_map, plot_title_map, num_of_plots, shortFilename, path):	
+    if calculation == "ts":
+        plotcalc = "plot"
+    elif calculation == "fft" or calculation == "psd":
+        plotcalc = "loglog"
+		
+    x_attribute = "x_"+str(calculation)
+    y_attribute = "y_"+str(calculation)
 	
+    for i,l in enumerate(plot_title_map):
+        plt.figure()
+        plt.tile(plot_title_map[l])
+        temp_plot_objs = []
+        for j, k in enumerate(plot_channel_map["plot"+str(i+1)]):
+            channel_name = k
+            obje = compare_names(channel_objs, channel_name)
+            temp_plot_objs.append(obje)
+            getattr(plt, plotcalc)(getattr(obje, x_attribute), getattr(obje, y_attribute), label=str(k))
+        plt.legend(loc=0)
+        my_file = str(path)+str(shortFilename)+str(plot_title_map[l])+"_"+str(calculation)
+        Xlimits, Ylimits = find_best_lims(temp_plot_objs, calculation)
+        plt.xlim(Xlimits)
+        plt.ylim(Ylimits)
+        plt.savefig(my_file)
+        plt.show()
+		
+		
+def compare_names(channel_objs, channel_name):
+	for i in channel_objs:
+		if getattr(i, name) == channel_name:
+			return i
+		else:
+			pass 
 ###Quoted functions have (hopefully) been replaced with hp_gen	
 """	
 def hp_TS(calculation, channel_objs, shortFilename, path):
@@ -256,7 +348,7 @@ class Data_Channel:
         self.y_ts = wave
         self.y_fft = fft 
         self.y_psd = psd
-        self.fs = sampling_rate
+        self.fs = sampling_rate 
 		
 		
 		
@@ -269,15 +361,15 @@ class Data_Channel:
             Uxlim += ((Uxlim - min(self.x_ts))*0.1)
             Uxlim = int(Uxlim)
         elif calculation == "fft":
-            Uylim, Lylim = max(getattr(self, "y_fft")) + max(getattr(self, "y_fft"))*0.1, min(getattr(self, "y_fft")) - min(getattr(self, "y_fft"))*0.1
-            Uxlim_index = np.where(self.y_fft>=0.1*max(self.y_fft))[0][-1] 
-            Uxlim = self.x_fft[Uxlim_index]
+            Uylim, Lylim = max(getattr(self, "y_fft")[1::]) + max(getattr(self, "y_fft")[1::])*0.1, min(getattr(self, "y_fft")) - min(getattr(self, "y_fft"))*0.1
+            Uxlim_index = np.where(self.y_fft[1::]>=0.1*max(self.y_fft[1::]))[0][-1] 
+            Uxlim = self.x_fft[Uxlim_index+1]
             Uxlim += ((Uxlim - min(self.x_fft))*0.1)
             Uxlim = int(Uxlim)
         elif calculation ==  "psd":
-            Uylim, Lylim = max(getattr(self, "y_psd")) + max(getattr(self, "y_psd"))*0.1, min(getattr(self, "y_psd")) - min(getattr(self, "y_psd"))*0.1
-            Uxlim_index = np.where(self.y_psd>=0.1*max(self.y_psd))[0][-1]
-            Uxlim = self.x_psd[Uxlim_index]
+            Uylim, Lylim = max(getattr(self, "y_psd")[1::]) + max(getattr(self, "y_psd")[1::])*0.1, min(getattr(self, "y_psd")[1::]) - min(getattr(self, "y_psd")[1::])*0.1
+            Uxlim_index = np.where(self.y_psd[1::]>=0.1*max(self.y_psd[1::]))[0][-1]
+            Uxlim = self.x_psd[Uxlim_index+1]
             Uxlim += ((Uxlim - min(self.x_psd))*0.1)
             Uxlim = int(Uxlim)
         Lxlim = min(self.x_ts)
